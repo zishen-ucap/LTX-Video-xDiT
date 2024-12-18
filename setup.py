@@ -26,7 +26,7 @@ if __name__ == "__main__":
         author_email="fangjiarui123@gmail.com",
         packages=find_packages(),
         install_requires=[
-            "torch==2.3.1",
+            # "torch==2.3.1",
             "accelerate>=0.33.0",
             "diffusers@git+https://github.com/huggingface/diffusers",  # NOTE: diffusers>=0.32.0.dev is necessary for CogVideoX and Flux
             "transformers>=4.39.1",
