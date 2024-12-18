@@ -6,6 +6,7 @@ from .pipeline_flux import xFuserFluxPipeline
 from .pipeline_latte import xFuserLattePipeline
 from .pipeline_cogvideox import xFuserCogVideoXPipeline
 from .pipeline_hunyuandit import xFuserHunyuanDiTPipeline
+from .pipeline_mochi import xFuserMochiPipeline
 
 __all__ = [
     "xFuserPipelineBaseWrapper",
@@ -16,4 +17,5 @@ __all__ = [
     "xFuserLattePipeline",
     "xFuserHunyuanDiTPipeline",
     "xFuserCogVideoXPipeline",
+    "xFuserMochiPipeline",
 ]

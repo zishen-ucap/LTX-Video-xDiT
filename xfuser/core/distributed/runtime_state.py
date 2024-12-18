@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
-from diffusers import DiffusionPipeline, CogVideoXPipeline
+from diffusers import DiffusionPipeline, CogVideoXPipeline, MochiPipeline
 import torch.distributed
 
 from xfuser.config.config import (
@@ -112,6 +112,15 @@ class DiTRuntimeState(RuntimeState):
                 backbone_inner_dim=pipeline.transformer.config.num_attention_heads
                 * pipeline.transformer.config.attention_head_dim,
             )
+        elif isinstance(pipeline, MochiPipeline):
+            self._set_mochi_parameters(
+                vae_scale_factor_spatial=pipeline.vae_spatial_scale_factor,
+                vae_scale_factor_temporal=pipeline.vae_temporal_scale_factor,
+                backbone_patch_size=pipeline.transformer.config.patch_size,
+                backbone_in_channel=pipeline.transformer.config.in_channels,
+                backbone_inner_dim=pipeline.transformer.config.num_attention_heads
+                * pipeline.transformer.config.attention_head_dim,
+            )
         else:
             self._set_model_parameters(
                 vae_scale_factor=pipeline.vae_scale_factor,
@@ -191,6 +200,22 @@ class DiTRuntimeState(RuntimeState):
     ):
         self.vae_scale_factor_spatial = vae_scale_factor_spatial
         self.vae_scale_factor_temporal = vae_scale_factor_temporal
+        self.backbone_patch_size = backbone_patch_size
+        self.backbone_inner_dim = backbone_inner_dim
+        self.backbone_in_channel = backbone_in_channel
+        self.cogvideox = True
+
+    def _set_mochi_parameters(
+        self,
+        vae_scale_factor_spatial: int,
+        vae_scale_factor_temporal: int,
+        backbone_patch_size: int,
+        backbone_inner_dim: int,
+        backbone_in_channel: int,
+    ):
+        self.vae_scale_factor_spatial = vae_scale_factor_spatial
+        self.vae_scale_factor_temporal = vae_scale_factor_temporal
+        self.vae_scale_factor = vae_scale_factor_spatial
         self.backbone_patch_size = backbone_patch_size
         self.backbone_inner_dim = backbone_inner_dim
         self.backbone_in_channel = backbone_in_channel
