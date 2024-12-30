@@ -1,4 +1,4 @@
-# Mochi-Diffusers-xDiT
+# LTX-Video-xDiT
 
 This project is based on the [LTX-Video](https://github.com/Lightricks/LTX-Video) algorithm of the diffusers and optimized and accelerated for multi GPUs inference using the [xDiT](https://github.com/xdit-project/xDiT) framework.
 
