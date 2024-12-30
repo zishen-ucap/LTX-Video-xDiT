@@ -22,6 +22,7 @@ pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https
 ### 3. Install the xDiT package:
 
 ```
+git clone https://github.com/zishen-ucap/LTX-Video-xDiT.git
 cd xDiT
 pip install -e .
 ```
