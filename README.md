@@ -54,8 +54,7 @@ huggingface-cli download --resume-download Lightricks/LTX-Video --local-dir Ligh
 Once the setup is complete, you can run the example with the following command:
 
 ```
-CUDA_VISIBLE_DEVICES=0,1,2,3, torchrun --nproc_per_node=4 examples/ltxvideo_example.py --model './Lightricks/LTX-Video' --ulysses_degree 1 --ring_degree 2 --use_cfg_parallel --height 512 --width 768 --num_frames 161 --prompt "A woman with long brown hair and light skin smiles at another woman with long blonde hair. The woman with brown hair wears a black jacket and has a small, barely noticeable mole on her right cheek. The camera angle is a close-up, focused on the woman with brown hair's face. The lighting is warm and natural, likely from the setting sun, casting a soft glow on the scene. The scene appears to be real-life footage." --num_inference_steps 50 --seed 42
-
+CUDA_VISIBLE_DEVICES=0,1,2,3, torchrun --nproc_per_node=4 examples/ltxvideo_example.py --model './Lightricks/LTX-Video' --ulysses_degree 1 --ring_degree 2 --use_cfg_parallel --height 512 --width 768 --num_frames 161 --prompt "Your prompt" --num_inference_steps 50 --seed 42
 ```
 
 
