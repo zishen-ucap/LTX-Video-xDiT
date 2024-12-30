@@ -15,8 +15,10 @@ from diffusers.models.attention_processor import (
     CogVideoXAttnProcessor2_0,
     MochiAttnProcessor2_0,
 )
+from diffusers.models.transformers.transformer_ltx import LTXVideoAttentionProcessor2_0
 
 from diffusers.models.embeddings import apply_rotary_emb
+from diffusers.models.transformers.transformer_ltx import apply_rotary_emb as ltx_apply_rotary_emb
 
 from xfuser.core.distributed import (
     get_sequence_parallel_world_size,
@@ -1147,8 +1149,8 @@ class xFuserCogVideoXAttnProcessor2_0(CogVideoXAttnProcessor2_0):
         return hidden_states, encoder_hidden_states
 
 #zishen add
-@xFuserAttentionProcessorRegister.register(MochiAttnProcessor2_0)
-class xFuserMochiAttnProcessor2_0(MochiAttnProcessor2_0):
+@xFuserAttentionProcessorRegister.register(LTXVideoAttentionProcessor2_0)
+class xFuserCLTXVideoAttentionProcessor2_0(LTXVideoAttentionProcessor2_0):
     r"""
     Processor for implementing scaled dot-product attention for the CogVideoX model. It applies a rotary embedding on
     query and key vectors, but does not include spatial normalization.
@@ -1184,67 +1186,37 @@ class xFuserMochiAttnProcessor2_0(MochiAttnProcessor2_0):
         self,
         attn: Attention,
         hidden_states: torch.Tensor,
-        encoder_hidden_states: torch.Tensor,
+        encoder_hidden_states: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         image_rotary_emb: Optional[torch.Tensor] = None,
         latte_temporal_attention: Optional[bool] = False,
     ) -> torch.Tensor:
-        text_seq_length = encoder_hidden_states.size(1)
-        latent_seq_length = hidden_states.size(1)
-        query = attn.to_q(hidden_states)
-        key = attn.to_k(hidden_states)
-        value = attn.to_v(hidden_states)
-
-        query = query.unflatten(2, (attn.heads, -1))
-        key = key.unflatten(2, (attn.heads, -1))
-        value = value.unflatten(2, (attn.heads, -1))
-
-        if attn.norm_q is not None:
-            query = attn.norm_q(query)
-        if attn.norm_k is not None:
-            key = attn.norm_k(key)
-
-        encoder_query = attn.add_q_proj(encoder_hidden_states)
-        encoder_key = attn.add_k_proj(encoder_hidden_states)
-        encoder_value = attn.add_v_proj(encoder_hidden_states)
-
-        encoder_query = encoder_query.unflatten(2, (attn.heads, -1))
-        encoder_key = encoder_key.unflatten(2, (attn.heads, -1))
-        encoder_value = encoder_value.unflatten(2, (attn.heads, -1))
-
-        if attn.norm_added_q is not None:
-            encoder_query = attn.norm_added_q(encoder_query)
-        if attn.norm_added_k is not None:
-            encoder_key = attn.norm_added_k(encoder_key)
-
-        if image_rotary_emb is not None:
-
-            def apply_rotary_emb(x, freqs_cos, freqs_sin):
-                x_even = x[..., 0::2].float()
-                x_odd = x[..., 1::2].float()
-
-                cos = (x_even * freqs_cos - x_odd * freqs_sin).to(x.dtype)
-                sin = (x_even * freqs_sin + x_odd * freqs_cos).to(x.dtype)
-
-                return torch.stack([cos, sin], dim=-1).flatten(-2)
-
-            query = apply_rotary_emb(query, *image_rotary_emb)
-            key = apply_rotary_emb(key, *image_rotary_emb)
-
-        query, key, value = query.transpose(1, 2), key.transpose(1, 2), value.transpose(1, 2)
-        encoder_query, encoder_key, encoder_value = (
-            encoder_query.transpose(1, 2),
-            encoder_key.transpose(1, 2),
-            encoder_value.transpose(1, 2),
+        batch_size, sequence_length, _ = (
+            hidden_states.shape if encoder_hidden_states is None else encoder_hidden_states.shape
         )
 
-        sequence_length = query.size(2)
-        encoder_sequence_length = encoder_query.size(2)
+        if attention_mask is not None:
+            attention_mask = attn.prepare_attention_mask(attention_mask, sequence_length, batch_size)
+            attention_mask = attention_mask.view(batch_size, attn.heads, -1, attention_mask.shape[-1])
 
-        query = torch.cat([query, encoder_query], dim=2)
-        key = torch.cat([key, encoder_key], dim=2)
-        value = torch.cat([value, encoder_value], dim=2)
-        batch_size, _, _, head_dim = query.shape
+        if encoder_hidden_states is None:
+            encoder_hidden_states = hidden_states
+
+        query = attn.to_q(hidden_states)
+        key = attn.to_k(encoder_hidden_states)
+        value = attn.to_v(encoder_hidden_states)
+
+        query = attn.norm_q(query)
+        key = attn.norm_k(key)
+
+        if image_rotary_emb is not None:
+            query = ltx_apply_rotary_emb(query, image_rotary_emb)
+            key = ltx_apply_rotary_emb(key, image_rotary_emb)
+
+        query = query.unflatten(2, (attn.heads, -1)).transpose(1, 2)
+        key = key.unflatten(2, (attn.heads, -1)).transpose(1, 2)
+        value = value.unflatten(2, (attn.heads, -1)).transpose(1, 2)
+        batch_size, _, _, head_dim = value.shape
         
         # hidden_states = F.scaled_dot_product_attention(query, key, value, dropout_p=0.0, is_causal=False)
         #! ---------------------------------------- KV CACHE ----------------------------------------
@@ -1259,21 +1231,9 @@ class xFuserMochiAttnProcessor2_0(MochiAttnProcessor2_0):
 
         #! ---------------------------------------- ATTENTION ----------------------------------------
         if HAS_LONG_CTX_ATTN and get_sequence_parallel_world_size() > 1:
-            if get_runtime_state().split_text_embed_in_sp:
-                encoder_query = None
-                encoder_key = None
-                encoder_value = None
-            else:
-                encoder_query = query[:, :, :text_seq_length, :]
-                query = query[:, :, text_seq_length:, :]
-                encoder_key = key[:, :, :text_seq_length, :]
-                key = key[:, :, text_seq_length:, :]
-                encoder_value = value[:, :, :text_seq_length, :]
-                value = value[:, :, text_seq_length:, :]
-
-                encoder_query = encoder_query.transpose(1, 2)
-                encoder_key = encoder_key.transpose(1, 2)
-                encoder_value = encoder_value.transpose(1, 2)
+            encoder_query = None
+            encoder_key = None
+            encoder_value = None
 
             query = query.transpose(1, 2)
             key = key.transpose(1, 2)
@@ -1328,17 +1288,8 @@ class xFuserMochiAttnProcessor2_0(MochiAttnProcessor2_0):
         #! ---------------------------------------- ATTENTION ----------------------------------------
 
         hidden_states = hidden_states.to(query.dtype)
-        
-        hidden_states, encoder_hidden_states = hidden_states.split_with_sizes(
-            (sequence_length, encoder_sequence_length), dim=1
-        )
-        
+
         hidden_states = attn.to_out[0](hidden_states)
-        # dropout
         hidden_states = attn.to_out[1](hidden_states)
-
-        if hasattr(attn, "to_add_out"):
-            encoder_hidden_states = attn.to_add_out(encoder_hidden_states)
-        
-        return hidden_states, encoder_hidden_states
-
+        return hidden_states
+    

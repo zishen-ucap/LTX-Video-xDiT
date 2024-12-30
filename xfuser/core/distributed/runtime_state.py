@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
-from diffusers import DiffusionPipeline, CogVideoXPipeline, MochiPipeline
+from diffusers import DiffusionPipeline, CogVideoXPipeline, MochiPipeline, LTXPipeline
 import torch.distributed
 
 from xfuser.config.config import (
@@ -112,10 +112,10 @@ class DiTRuntimeState(RuntimeState):
                 backbone_inner_dim=pipeline.transformer.config.num_attention_heads
                 * pipeline.transformer.config.attention_head_dim,
             )
-        elif isinstance(pipeline, MochiPipeline):
-            self._set_mochi_parameters(
-                vae_scale_factor_spatial=pipeline.vae_spatial_scale_factor,
-                vae_scale_factor_temporal=pipeline.vae_temporal_scale_factor,
+        elif isinstance(pipeline, LTXPipeline):
+            self._set_cogvideox_parameters(
+                vae_scale_factor_spatial=pipeline.vae_spatial_compression_ratio,
+                vae_scale_factor_temporal=pipeline.vae_temporal_compression_ratio,
                 backbone_patch_size=pipeline.transformer.config.patch_size,
                 backbone_in_channel=pipeline.transformer.config.in_channels,
                 backbone_inner_dim=pipeline.transformer.config.num_attention_heads
