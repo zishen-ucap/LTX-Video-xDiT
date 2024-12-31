@@ -3,7 +3,6 @@ import time
 import torch
 import torch.distributed
 from diffusers import AutoencoderKLTemporalDecoder
-# from xfuser import xFuserCogVideoXPipeline, xFuserArgs
 from xfuser import xFuserLTXPipeline, xFuserArgs
 from xfuser.config import FlexibleArgumentParser
 from xfuser.core.distributed import (
