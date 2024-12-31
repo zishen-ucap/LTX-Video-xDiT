@@ -56,8 +56,10 @@ def main():
         num_frames=input_config.num_frames,
         prompt=input_config.prompt,
         num_inference_steps=input_config.num_inference_steps,
+        decode_timestep=0.03,
+        decode_noise_scale=0.025,
         generator=torch.Generator(device="cuda").manual_seed(input_config.seed),
-        guidance_scale=6,
+        guidance_scale=3,
     ).frames[0]
 
     end_time = time.time()
